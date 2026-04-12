@@ -1,0 +1,17 @@
+# rspm process configuration example (TOML format)
+# Usage: rspm start -f process.toml
+
+name = "my-service"
+command = "/usr/bin/node"
+args = ["server.js"]
+instances = 2
+cwd = "/app"
+autorestart = true
+max_restarts = 10
+
+[env]
+NODE_ENV = "production"
+PORT = "3000"
+
+log_max_size = 10485760  # 10MB
+log_max_files = 5

@@ -1,0 +1,26 @@
+# rspm ecosystem configuration example
+# Single process: rspm start -f ecosystem.yaml
+
+processes:
+  - name: web-server
+    command: /usr/bin/python3
+    args:
+      - "-m"
+      - "http.server"
+      - "8080"
+    instances: 2
+    cwd: /tmp
+    autorestart: true
+    max_restarts: 10
+    env:
+      NODE_ENV: production
+      DEBUG: "false"
+    log_max_size: 10485760  # 10MB
+    log_max_files: 5
+
+  - name: background-worker
+    command: /usr/bin/sleep
+    args:
+      - "3600"
+    instances: 1
+    autorestart: true

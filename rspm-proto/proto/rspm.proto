@@ -1,0 +1,434 @@
+syntax = "proto3";
+
+package rspm;
+
+// Process state
+enum ProcessState {
+    STOPPED = 0;
+    STARTING = 1;
+    RUNNING = 2;
+    STOPPING = 3;
+    ERRORED = 4;
+}
+
+// Server type
+enum ServerType {
+    PROCESS = 0;
+    STATIC_SERVER = 1;
+}
+
+// Process configuration
+message ProcessConfig {
+    string name = 1;
+    string command = 2;
+    repeated string args = 3;
+    map<string, string> env = 4;
+    string cwd = 5;
+    int32 instances = 6;  // Number of instances for load balancing
+    bool autorestart = 7;
+    int32 max_restarts = 8;  // Max restart attempts before marking as errored
+    int32 max_memory_mb = 9;  // Memory limit in MB, 0 means unlimited
+    bool watch = 10;  // Watch for file changes (dev mode)
+    repeated string watch_paths = 11;
+    string log_file = 12;  // Log file path
+    string error_file = 13;  // Error log file path
+    int64 log_max_size = 14;  // Max log file size in bytes
+    int32 log_max_files = 15;  // Max number of rotated log files
+    ServerType server_type = 16;  // Server type (normal process or static file server)
+}
+
+// Process information
+message ProcessInfo {
+    int64 db_id = 1;  // Database auto-increment ID
+    string id = 2;  // Display ID (same as db_id for single instance)
+    string name = 3;
+    ProcessState state = 4;
+    int32 pid = 5;
+    int32 instance_id = 6;  // Instance number for clustered processes
+    ProcessConfig config = 7;
+    int64 uptime_ms = 8;
+    int32 restart_count = 9;
+    double cpu_percent = 10;
+    int64 memory_bytes = 11;
+    int64 created_at = 12;
+    int64 started_at = 13;
+}
+
+// Request/Response messages
+message StartProcessRequest {
+    ProcessConfig config = 1;
+}
+
+message StartProcessResponse {
+    string id = 1;
+    bool success = 2;
+    string message = 3;
+}
+
+message StopProcessRequest {
+    string id = 1;
+    bool force = 2;  // Force kill if true
+}
+
+message StopProcessResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message RestartProcessRequest {
+    string id = 1;
+}
+
+message RestartProcessResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ListProcessesRequest {
+    // Optional filter by name
+    string name_filter = 1;
+}
+
+message ListProcessesResponse {
+    repeated ProcessInfo processes = 1;
+}
+
+message GetProcessRequest {
+    string id = 1;
+}
+
+message GetProcessResponse {
+    ProcessInfo process = 1;
+}
+
+message StreamLogsRequest {
+    string id = 1;
+    bool follow = 2;  // Follow log output (like tail -f)
+    int32 lines = 3;  // Number of historical lines to return
+    bool stderr = 4;  // Include stderr
+}
+
+message LogEntry {
+    string id = 1;
+    int64 timestamp = 2;
+    string message = 3;
+    bool is_error = 4;
+}
+
+message StreamLogsResponse {
+    repeated LogEntry entries = 1;
+}
+
+message DeleteProcessRequest {
+    string id = 1;
+}
+
+message DeleteProcessResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message StopAllProcessesRequest {}
+
+message StopAllProcessesResponse {
+    int32 stopped_count = 1;
+    string message = 2;
+}
+
+message SaveProcessRequest {
+    ProcessConfig config = 1;
+}
+
+message SaveProcessResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message GetDaemonStatusRequest {}
+
+message DaemonStatus {
+    bool running = 1;
+    int32 total_processes = 2;
+    int64 uptime_ms = 3;
+    string version = 4;
+}
+
+message GetDaemonStatusResponse {
+    DaemonStatus status = 1;
+}
+
+message FlushLogsRequest {
+    string id = 1;
+}
+
+message FlushLogsResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ReloadLogsRequest {
+    string id = 1;
+}
+
+message ReloadLogsResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ScaleProcessRequest {
+    string id = 1;
+    int32 instances = 2;
+}
+
+message ScaleProcessResponse {
+    bool success = 1;
+    string message = 2;
+    repeated string new_instance_ids = 3;
+}
+
+message StopDaemonRequest {}
+
+message StopDaemonResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+// Schedule types
+enum ScheduleType {
+    CRON = 0;
+    INTERVAL = 1;
+    ONCE = 2;
+}
+
+enum ScheduleAction {
+    START = 0;
+    STOP = 1;
+    RESTART = 2;
+    EXECUTE = 3;
+}
+
+enum ScheduleStatus {
+    ACTIVE = 0;
+    PAUSED = 1;
+    COMPLETED = 2;
+    ERROR = 3;
+}
+
+// Schedule configuration
+message ScheduleConfig {
+    string id = 1;
+    string name = 2;
+    string process_name = 3;
+    ScheduleType schedule_type = 4;
+    string schedule_value = 5;  // cron expression, interval seconds, or datetime
+    ScheduleAction action = 6;
+    string action_command = 7;  // for EXECUTE action
+    repeated string action_args = 8;  // for EXECUTE action
+    bool enabled = 9;
+    string timezone = 10;
+    int32 max_runs = 11;
+    string description = 12;
+}
+
+// Schedule information
+message ScheduleInfo {
+    string id = 1;
+    ScheduleConfig config = 2;
+    ScheduleStatus status = 3;
+    int64 created_at = 4;
+    int64 updated_at = 5;
+    int64 last_run = 6;
+    int64 next_run = 7;
+    int32 run_count = 8;
+    int32 success_count = 9;
+    int32 fail_count = 10;
+}
+
+// Schedule execution record
+message ScheduleExecution {
+    string id = 1;
+    string schedule_id = 2;
+    int64 started_at = 3;
+    int64 ended_at = 4;
+    string status = 5;
+    string output = 6;
+    string error = 7;
+}
+
+// Static file server configuration
+message StaticServerConfig {
+    string id = 1;
+    string name = 2;
+    string host = 3;
+    int32 port = 4;
+    string directory = 5;
+}
+
+// Static server information
+message StaticServerInfo {
+    string id = 1;
+    string name = 2;
+    string host = 3;
+    int32 port = 4;
+    string directory = 5;
+    bool running = 6;
+    int64 started_at = 7;
+}
+
+// Static server request/response messages
+message StartStaticServerRequest {
+    string name = 1;
+    string host = 2;
+    int32 port = 3;
+    string directory = 4;
+}
+
+message StartStaticServerResponse {
+    string id = 1;
+    bool success = 2;
+    string message = 3;
+}
+
+message StopStaticServerRequest {
+    string id = 1;
+}
+
+message StopStaticServerResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ListStaticServersRequest {}
+
+message ListStaticServersResponse {
+    repeated StaticServerInfo servers = 1;
+}
+
+message GetStaticServerRequest {
+    string id = 1;
+}
+
+message GetStaticServerResponse {
+    StaticServerInfo server = 1;
+}
+
+// Schedule request/response messages
+message CreateScheduleRequest {
+    ScheduleConfig config = 1;
+}
+
+message CreateScheduleResponse {
+    string id = 1;
+    bool success = 2;
+    string message = 3;
+}
+
+message UpdateScheduleRequest {
+    string id = 1;
+    ScheduleConfig config = 2;
+}
+
+message UpdateScheduleResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message DeleteScheduleRequest {
+    string id = 1;
+}
+
+message DeleteScheduleResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message GetScheduleRequest {
+    string id = 1;
+}
+
+message GetScheduleResponse {
+    ScheduleInfo schedule = 1;
+}
+
+message ListSchedulesRequest {
+    // Optional filter by name
+    string name_filter = 1;
+}
+
+message ListSchedulesResponse {
+    repeated ScheduleInfo schedules = 1;
+}
+
+message PauseScheduleRequest {
+    string id = 1;
+}
+
+message PauseScheduleResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ResumeScheduleRequest {
+    string id = 1;
+}
+
+message ResumeScheduleResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message GetScheduleExecutionsRequest {
+    string id = 1;
+    int32 limit = 2;
+}
+
+message GetScheduleExecutionsResponse {
+    repeated ScheduleExecution executions = 1;
+}
+
+// gRPC service definition
+service ProcessManager {
+    // Process lifecycle
+    rpc StartProcess(StartProcessRequest) returns (StartProcessResponse);
+    rpc StopProcess(StopProcessRequest) returns (StopProcessResponse);
+    rpc RestartProcess(RestartProcessRequest) returns (RestartProcessResponse);
+    rpc DeleteProcess(DeleteProcessRequest) returns (DeleteProcessResponse);
+    rpc StopAllProcesses(StopAllProcessesRequest) returns (StopAllProcessesResponse);
+
+    // Process information
+    rpc ListProcesses(ListProcessesRequest) returns (ListProcessesResponse);
+    rpc GetProcess(GetProcessRequest) returns (GetProcessResponse);
+    rpc GetDaemonStatus(GetDaemonStatusRequest) returns (GetDaemonStatusResponse);
+
+    // Log management
+    rpc StreamLogs(StreamLogsRequest) returns (stream LogEntry);
+
+    // Configuration
+    rpc SaveProcess(SaveProcessRequest) returns (SaveProcessResponse);
+
+    // Scaling
+    rpc ScaleProcess(ScaleProcessRequest) returns (ScaleProcessResponse);
+
+    // Log operations
+    rpc FlushLogs(FlushLogsRequest) returns (FlushLogsResponse);
+    rpc ReloadLogs(ReloadLogsRequest) returns (ReloadLogsResponse);
+
+    // Daemon control
+    rpc StopDaemon(StopDaemonRequest) returns (StopDaemonResponse);
+
+    // Schedule management
+    rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse);
+    rpc UpdateSchedule(UpdateScheduleRequest) returns (UpdateScheduleResponse);
+    rpc DeleteSchedule(DeleteScheduleRequest) returns (DeleteScheduleResponse);
+    rpc GetSchedule(GetScheduleRequest) returns (GetScheduleResponse);
+    rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse);
+    rpc PauseSchedule(PauseScheduleRequest) returns (PauseScheduleResponse);
+    rpc ResumeSchedule(ResumeScheduleRequest) returns (ResumeScheduleResponse);
+    rpc GetScheduleExecutions(GetScheduleExecutionsRequest) returns (GetScheduleExecutionsResponse);
+
+    // Static file server management
+    rpc StartStaticServer(StartStaticServerRequest) returns (StartStaticServerResponse);
+    rpc StopStaticServer(StopStaticServerRequest) returns (StopStaticServerResponse);
+    rpc ListStaticServers(ListStaticServersRequest) returns (ListStaticServersResponse);
+    rpc GetStaticServer(GetStaticServerRequest) returns (GetStaticServerResponse);
+}

@@ -1,0 +1,27 @@
+[Unit]
+Description=RSPM Process Manager
+Documentation=https://github.com/vcqr/rspm
+After=network.target
+
+[Service]
+Type=simple
+User=%u
+Group=%g
+WorkingDirectory=%h/.rspm
+ExecStart=/usr/local/bin/rspmd
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:%h/.rspm/logs/daemon-out.log
+StandardError=append:%h/.rspm/logs/daemon-err.log
+
+# Environment
+Environment="RSPM_HOME=%h/.rspm"
+
+# Hardening
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.rspm
+
+[Install]
+WantedBy=default.target

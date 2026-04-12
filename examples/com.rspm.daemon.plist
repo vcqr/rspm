@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.rspm.daemon</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/rspmd</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>~/.rspm</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>~/.rspm/logs/daemon-out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>~/.rspm/logs/daemon-err.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>Description</key>
+    <string>RSPM Process Manager - Rust Process Manager Daemon</string>
+
+    <key>Documentation</key>
+    <string>https://github.com/vcqr/rspm</string>
+</dict>
+</plist>

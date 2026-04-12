@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["rspm-common", "rspm-proto", "rspm-cli", "rspm-daemon"]
+
+
+[profile.release]
+# 1. 优化等级："z" 或 "s" 专注于减小体积，"3" 专注于速度
+opt-level = "z"
+
+# 2. 开启链接时优化 (LTO)，跨模块移除死代码
+lto = true
+
+# 3. 移除调试信息 (0 = 无，true/1 = 行号表，2 = 完整调试信息)
+debug = 0
+
+# 4. 剥离符号表 (Rust 1.59+ 支持)，相当于运行 strip 命令
+strip = true
+
+# 5.  panic 策略：abort 比 unwind 体积更小，但 panic 时直接退出无堆栈信息
+panic = "abort"
+
+# 6. 代码生成单元：设为 1 可以让优化器更好地全局优化，但编译变慢
+codegen-units = 1
