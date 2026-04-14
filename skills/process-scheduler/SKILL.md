@@ -176,6 +176,15 @@ rspm schedule create cleanup \
   --action execute \
   -- /bin/bash -c "rm -rf /tmp/*.log"
 
+### or full command with args
+rspm schedule create \
+  --name cleanup \
+  --cron "0 */5 * * * *" \
+  --timezone "Asia/Shanghai" \
+  --action execute \
+  --command /bin/bash \
+  --args "-c, rm, -rf, /tmp/*.log"
+
 # Every 30 seconds
 rspm schedule create ping \
   --interval 30 \
