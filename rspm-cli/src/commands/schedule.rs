@@ -540,3 +540,149 @@ pub async fn history(id: &str, limit: u32) -> Result<()> {
     println!("\r\n{}", table.render());
     Ok(())
 }
+
+/// Show schedule execution logs
+pub async fn logs(id: &str, lines: u32, follow: bool) -> Result<()> {
+    let mut client = create_client().await?;
+
+    // Try to find schedule by ID (full or partial) or name
+    let info = if let Ok(Some(info)) = client.get_schedule(id).await {
+        info
+    } else {
+        // Try to find by name or partial ID
+        let schedules = client
+            .list_schedules()
+            .await
+            .map_err(|e| RspmError::SchedulerError(e.to_string()))?;
+        schedules
+            .into_iter()
+            .find(|s| s.config.name == id || s.id.starts_with(id))
+            .ok_or_else(|| RspmError::NotFound(format!("Schedule not found: {}", id)))?
+    };
+
+    // Build log file path: ~/.rspm/logs/schedules/<schedule-name>.log
+    let log_dir = rspm_common::get_logs_dir();
+    let schedules_dir = log_dir.join("schedules");
+    let log_path = schedules_dir.join(format!("{}.log", info.config.name));
+
+    if !log_path.exists() {
+        println!("No log file found for schedule: {}", info.config.name);
+        return Ok(());
+    }
+
+    // Read log file content
+    let content = std::fs::read_to_string(&log_path).map_err(RspmError::IoError)?;
+
+    if content.is_empty() {
+        println!("Log file is empty for schedule: {}", info.config.name);
+        return Ok(());
+    }
+
+    // Parse log entries (separated by the === line)
+    let entries: Vec<&str> = content
+        .split(
+            "\n================================================================================\n",
+        )
+        .filter(|s| !s.trim().is_empty())
+        .collect();
+
+    // Show last N entries
+    let entries_to_show = if lines == 0 {
+        entries.len()
+    } else {
+        lines as usize
+    };
+
+    let start_idx = entries.len().saturating_sub(entries_to_show);
+    let selected_entries = &entries[start_idx..];
+
+    println!(
+        "{}",
+        format!("Execution Logs for {}", info.config.name)
+            .bold()
+            .underline()
+    );
+    println!("Log file: {}", log_path.display().to_string().dimmed());
+    println!();
+
+    for entry in selected_entries {
+        let entry = entry.trim();
+        if entry.is_empty() {
+            continue;
+        }
+
+        // Colorize based on status
+        let colored_entry = if entry.contains("Status:         Success") {
+            entry.green().to_string()
+        } else if entry.contains("Status:         Failed") {
+            entry.red().to_string()
+        } else if entry.contains("Status:         Timeout") {
+            entry.yellow().to_string()
+        } else if entry.contains("Status:         Running") {
+            entry.blue().to_string()
+        } else {
+            entry.to_string()
+        };
+
+        println!("{}", colored_entry);
+        println!();
+    }
+
+    // If follow mode is enabled, watch for new log entries
+    if follow {
+        println!("\n{}", "Watching for new logs... (Ctrl+C to stop)".dimmed());
+
+        use std::fs::File;
+        use std::io::{BufRead, BufReader, Seek, SeekFrom};
+        use std::time::Duration;
+
+        let mut file = File::open(&log_path).map_err(RspmError::IoError)?;
+
+        // Seek to end of file
+        file.seek(SeekFrom::End(0)).map_err(RspmError::IoError)?;
+
+        let mut reader = BufReader::new(file);
+        let mut line = String::new();
+
+        loop {
+            line.clear();
+            match reader.read_line(&mut line) {
+                Ok(0) => {
+                    // No new data, wait and retry
+                    std::thread::sleep(Duration::from_millis(500));
+
+                    // Clear EOF status and try again
+                    reader.stream_position().ok();
+                    continue;
+                }
+                Ok(_) => {
+                    let line = line.trim().to_string();
+                    if line.is_empty() {
+                        continue;
+                    }
+
+                    // Colorize and print
+                    let colored_line = if line.contains("Status:         Success") {
+                        line.green().to_string()
+                    } else if line.contains("Status:         Failed") {
+                        line.red().to_string()
+                    } else if line.contains("Status:         Timeout") {
+                        line.yellow().to_string()
+                    } else if line.contains("Status:         Running") {
+                        line.blue().to_string()
+                    } else {
+                        line
+                    };
+
+                    println!("{}", colored_line);
+                }
+                Err(e) => {
+                    eprintln!("Error reading log file: {}", e);
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}

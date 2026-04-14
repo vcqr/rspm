@@ -332,6 +332,20 @@ enum ScheduleCommands {
         #[arg(short, long, default_value = "20")]
         limit: u32,
     },
+
+    /// Show schedule execution logs
+    Logs {
+        /// Schedule ID or name
+        id: String,
+
+        /// Number of lines to show
+        #[arg(short = 'n', long, default_value = "50")]
+        lines: u32,
+
+        /// Follow log output
+        #[arg(short, long)]
+        follow: bool,
+    },
 }
 
 /// Helper function to get process identifier from positional arg or --id/--name arguments
@@ -530,6 +544,9 @@ async fn main() -> Result<()> {
             }
             ScheduleCommands::History { id, limit } => {
                 commands::schedule::history(&id, limit).await?;
+            }
+            ScheduleCommands::Logs { id, lines, follow } => {
+                commands::schedule::logs(&id, lines, follow).await?;
             }
         },
         Commands::Serve {
