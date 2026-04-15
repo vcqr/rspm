@@ -30,21 +30,26 @@ jobs:
             target: aarch64-unknown-linux-gnu
             os: linux
             arch: aarch64
-          # macOS x86_64 (Intel)
-          - runner: macos-15-xlarge
-            target: x86_64-apple-darwin
-            os: macos
-            arch: x86_64
           # macOS ARM64 (Apple Silicon)
           - runner: macos-15
             target: aarch64-apple-darwin
             os: macos
             arch: aarch64
+          # macOS x86_64 (Intel)
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            os: macos
+            arch: x86_64
           # Windows x86_64
           - runner: windows-latest
             target: x86_64-pc-windows-msvc
             os: windows
             arch: x86_64
+          # Windows ARM64
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            os: windows
+            arch: aarch64
 
     steps:
       - name: Checkout code
@@ -64,12 +69,18 @@ jobs:
           fi
         shell: bash
 
+      - name: Install protobuf compiler (Windows)
+        if: matrix.os == 'windows'
+        run: |
+          choco install protoc --version=25.1 -y
+        shell: pwsh
+
       - name: Install cross-compilation tools (Linux ARM64)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-          
+
           # Configure cargo linker for cross-compilation
           mkdir -p .cargo
           cat >> .cargo/config.toml << 'EOF'
@@ -102,7 +113,7 @@ jobs:
           TARGET_DIR="target/${{ matrix.target }}/release"
           cp "$TARGET_DIR/rspm" "release-artifacts/rspm"
           cp "$TARGET_DIR/rspmd" "release-artifacts/rspmd"
-          
+
           # Create archive
           VERSION=${{ github.ref_name }}
           if [ -z "$VERSION" ]; then
@@ -121,7 +132,7 @@ jobs:
           $TARGET_DIR = "target\${{ matrix.target }}\release"
           Copy-Item "$TARGET_DIR\rspm.exe" "release-artifacts\rspm.exe"
           Copy-Item "$TARGET_DIR\rspmd.exe" "release-artifacts\rspmd.exe"
-          
+
           # Create archive
           $VERSION = if ("${{ github.ref_name }}") { "${{ github.ref_name }}" } else { "latest" }
           $ARCHIVE_NAME = "rspm-$VERSION-${{ matrix.os }}-${{ matrix.arch }}"
@@ -145,7 +156,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
-    
+
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -163,37 +174,38 @@ jobs:
           generate_release_notes: true
           body: |
             ## RSPM ${{ github.ref_name }}
-            
+
             ### 下载说明
             - **Linux x86_64**: `rspm-${{ github.ref_name }}-linux-x86_64.tar.gz`
             - **Linux ARM64**: `rspm-${{ github.ref_name }}-linux-aarch64.tar.gz`
-            - **macOS x86_64**: `rspm-${{ github.ref_name }}-macos-x86_64.tar.gz`
             - **macOS ARM64 (Apple Silicon)**: `rspm-${{ github.ref_name }}-macos-aarch64.tar.gz`
+            - **macOS x86_64 (Intel)**: `rspm-${{ github.ref_name }}-macos-x86_64.tar.gz`
             - **Windows x86_64**: `rspm-${{ github.ref_name }}-windows-x86_64.zip`
-            
+            - **Windows ARM64**: `rspm-${{ github.ref_name }}-windows-aarch64.zip`
+
             ### 安装步骤
             1. 下载对应平台的压缩包
             2. 解压到目标目录
             3. 添加可执行文件到 PATH
-            
+
             #### Linux/macOS
             ```bash
             tar -xzf rspm-*.tar.gz
             chmod +x rspm rspmd
             sudo mv rspm rspmd /usr/local/bin/
             ```
-            
+
             #### Windows
             ```powershell
             Expand-Archive -Path rspm-*.zip -DestinationPath rspm
             # 将 rspm 目录添加到 PATH
             ```
-            
+
             ### 快速开始
             ```bash
             # 启动守护进程
             rspmd &
-            
+
             # 使用 CLI
             rspm start --name myapp -- /bin/sleep 100
             rspm list
