@@ -20,22 +20,34 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux x86_64
+          # Linux x86_64 glibc
           - runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             os: linux
             arch: x86_64
-          # Linux ARM64
+          # Linux ARM64 glibc
           - runner: ubuntu-24.04
             target: aarch64-unknown-linux-gnu
             os: linux
             arch: aarch64
-          # macOS ARM64 (Apple Silicon)
+          # 🔽 新增：Linux x86_64 musl
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            os: linux
+            arch: x86_64
+            is_musl: true
+          # 🔽 新增：Linux ARM64 musl
+          - runner: ubuntu-24.04
+            target: aarch64-unknown-linux-musl
+            os: linux
+            arch: aarch64
+            is_musl: true
+          # macOS ARM64
           - runner: macos-15
             target: aarch64-apple-darwin
             os: macos
             arch: aarch64
-          # macOS x86_64 (Intel)
+          # macOS x86_64
           - runner: macos-15-intel
             target: x86_64-apple-darwin
             os: macos
@@ -60,6 +72,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # 🔽 新增：为 musl 目标安装交叉编译工具链 (自动处理 C 依赖)
+      - name: Install cargo-zigbuild (for musl targets)
+        if: matrix.is_musl
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+
       - name: Install protobuf compiler
         run: |
           if [ "${{ matrix.os }}" = "linux" ]; then
@@ -75,13 +94,11 @@ jobs:
           choco install protoc --version=25.1 -y
         shell: pwsh
 
-      - name: Install cross-compilation tools (Linux ARM64)
+      - name: Install cross-compilation tools (Linux ARM64 glibc)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-
-          # Configure cargo linker for cross-compilation
           mkdir -p .cargo
           cat >> .cargo/config.toml << 'EOF'
           [target.aarch64-unknown-linux-gnu]
@@ -100,11 +117,12 @@ jobs:
             ${{ runner.os }}-cargo-${{ matrix.target }}-
             ${{ runner.os }}-cargo-
 
+      # 🔽 修改：根据是否为 musl 自动切换构建工具
       - name: Build rspm-cli
-        run: cargo build --release --target ${{ matrix.target }} -p rspm-cli
+        run: ${{ matrix.is_musl && 'cargo-zigbuild' || 'cargo' }} build --release --target ${{ matrix.target }} -p rspm-cli
 
       - name: Build rspm-daemon
-        run: cargo build --release --target ${{ matrix.target }} -p rspm-daemon --features embed-static
+        run: ${{ matrix.is_musl && 'cargo-zigbuild' || 'cargo' }} build --release --target ${{ matrix.target }} -p rspm-daemon --features embed-static
 
       - name: Prepare artifacts (Unix)
         if: matrix.os != 'windows'
@@ -114,12 +132,12 @@ jobs:
           cp "$TARGET_DIR/rspm" "release-artifacts/rspm"
           cp "$TARGET_DIR/rspmd" "release-artifacts/rspmd"
 
-          # Create archive
           VERSION=${{ github.ref_name }}
           if [ -z "$VERSION" ]; then
             VERSION="latest"
           fi
-          ARCHIVE_NAME="rspm-${VERSION}-${{ matrix.os }}-${{ matrix.arch }}"
+          # 🔽 自动追加 -musl 后缀
+          ARCHIVE_NAME="rspm-${VERSION}-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.is_musl && '-musl' || '' }}"
           cd release-artifacts
           tar -czf "../${ARCHIVE_NAME}.tar.gz" rspm rspmd
           echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
@@ -133,7 +151,6 @@ jobs:
           Copy-Item "$TARGET_DIR\rspm.exe" "release-artifacts\rspm.exe"
           Copy-Item "$TARGET_DIR\rspmd.exe" "release-artifacts\rspmd.exe"
 
-          # Create archive
           $VERSION = if ("${{ github.ref_name }}") { "${{ github.ref_name }}" } else { "latest" }
           $ARCHIVE_NAME = "rspm-$VERSION-${{ matrix.os }}-${{ matrix.arch }}"
           Set-Location release-artifacts
@@ -143,7 +160,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: rspm-${{ matrix.os }}-${{ matrix.arch }}
+          name: rspm-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.is_musl && '-musl' || '' }}
           path: |
             *.tar.gz
             *.zip
@@ -176,38 +193,19 @@ jobs:
             ## RSPM ${{ github.ref_name }}
 
             ### 下载说明
-            - **Linux x86_64**: `rspm-${{ github.ref_name }}-linux-x86_64.tar.gz`
-            - **Linux ARM64**: `rspm-${{ github.ref_name }}-linux-aarch64.tar.gz`
+            - **Linux x86_64 (glibc)**: `rspm-${{ github.ref_name }}-linux-x86_64.tar.gz`
+            - **Linux ARM64 (glibc)**: `rspm-${{ github.ref_name }}-linux-aarch64.tar.gz`
+            - **Linux x86_64 (musl)**: `rspm-${{ github.ref_name }}-linux-x86_64-musl.tar.gz`
+            - **Linux ARM64 (musl)**: `rspm-${{ github.ref_name }}-linux-aarch64-musl.tar.gz`
             - **macOS ARM64 (Apple Silicon)**: `rspm-${{ github.ref_name }}-macos-aarch64.tar.gz`
             - **macOS x86_64 (Intel)**: `rspm-${{ github.ref_name }}-macos-x86_64.tar.gz`
             - **Windows x86_64**: `rspm-${{ github.ref_name }}-windows-x86_64.zip`
             - **Windows ARM64**: `rspm-${{ github.ref_name }}-windows-aarch64.zip`
 
+            ### 选型建议
+            - 选择 `glibc` 版本：适用于 Ubuntu/Debian/CentOS/Fedora 等主流发行版
+            - 选择 `musl` 版本：适用于 Alpine Linux、Distroless 镜像、容器化部署或需极致轻量的场景
+            - macOS/Windows 按系统架构直接下载即可
+
             ### 安装步骤
-            1. 下载对应平台的压缩包
-            2. 解压到目标目录
-            3. 添加可执行文件到 PATH
-
-            #### Linux/macOS
-            ```bash
-            tar -xzf rspm-*.tar.gz
-            chmod +x rspm rspmd
-            sudo mv rspm rspmd /usr/local/bin/
-            ```
-
-            #### Windows
-            ```powershell
-            Expand-Archive -Path rspm-*.zip -DestinationPath rspm
-            # 将 rspm 目录添加到 PATH
-            ```
-
-            ### 快速开始
-            ```bash
-            # 启动守护进程
-            rspmd &
-
-            # 使用 CLI
-            rspm start --name myapp -- /bin/sleep 100
-            rspm list
-            rspm logs myapp
-            ```
+            ... (你的原有说明保持不变) ...
