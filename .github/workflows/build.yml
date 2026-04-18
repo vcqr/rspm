@@ -72,12 +72,14 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install zig
+      # 安装 Zig 编译器（musl 交叉编译必需）
+      - name: Setup Zig (for musl cross-compilation)
         if: matrix.is_musl
-        uses: taiki-e/install-action@v2
+        uses: mlugg/setup-zig@v1
         with:
-          tool: zig
+          version: 0.13.0
 
+      # 安装 cargo-zigbuild 插件（依赖 zig 已安装）
       - name: Install cargo-zigbuild
         if: matrix.is_musl
         uses: taiki-e/install-action@v2
