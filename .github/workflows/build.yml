@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -30,13 +30,13 @@ jobs:
             target: aarch64-unknown-linux-gnu
             os: linux
             arch: aarch64
-          # 🔽 新增：Linux x86_64 musl
+          # Linux x86_64 musl
           - runner: ubuntu-24.04
             target: x86_64-unknown-linux-musl
             os: linux
             arch: x86_64
             is_musl: true
-          # 🔽 新增：Linux ARM64 musl
+          # Linux ARM64 musl
           - runner: ubuntu-24.04
             target: aarch64-unknown-linux-musl
             os: linux
@@ -72,8 +72,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # 🔽 新增：为 musl 目标安装交叉编译工具链 (自动处理 C 依赖)
-      - name: Install cargo-zigbuild (for musl targets)
+      - name: Install zig
+        if: matrix.is_musl
+        uses: taiki-e/install-action@v2
+        with:
+          tool: zig
+
+      - name: Install cargo-zigbuild
         if: matrix.is_musl
         uses: taiki-e/install-action@v2
         with:
@@ -117,7 +122,7 @@ jobs:
             ${{ runner.os }}-cargo-${{ matrix.target }}-
             ${{ runner.os }}-cargo-
 
-      # 🔽 修改：根据是否为 musl 自动切换构建工具
+      # 根据是否为 musl 自动切换构建工具
       - name: Build rspm-cli
         run: ${{ matrix.is_musl && 'cargo-zigbuild' || 'cargo' }} build --release --target ${{ matrix.target }} -p rspm-cli
 
@@ -136,7 +141,7 @@ jobs:
           if [ -z "$VERSION" ]; then
             VERSION="latest"
           fi
-          # 🔽 自动追加 -musl 后缀
+          # 自动追加 -musl 后缀
           ARCHIVE_NAME="rspm-${VERSION}-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.is_musl && '-musl' || '' }}"
           cd release-artifacts
           tar -czf "../${ARCHIVE_NAME}.tar.gz" rspm rspmd
