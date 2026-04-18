@@ -215,4 +215,30 @@ jobs:
             - macOS/Windows 按系统架构直接下载即可
 
             ### 安装步骤
-            ... (你的原有说明保持不变) ...
+            1. 下载对应平台的压缩包
+            2. 解压到目标目录
+            3. 添加可执行文件到 PATH
+
+            #### Linux/macOS
+            ```bash
+            tar -xzf rspm-*.tar.gz
+            chmod +x rspm rspmd
+            sudo mv rspm rspmd /usr/local/bin/
+            ```
+
+            #### Windows
+            ```powershell
+            Expand-Archive -Path rspm-*.zip -DestinationPath rspm
+            # 将 rspm 目录添加到 PATH
+            ```
+
+            ### 快速开始
+            ```bash
+            # 启动守护进程
+            rspmd &
+
+            # 使用 CLI
+            rspm start --name myapp -- /bin/sleep 100
+            rspm list
+            rspm logs myapp
+            ```
